@@ -14,7 +14,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
+import io.realm.Realm
+import io.realm.RealmConfiguration
+import io.realm.RealmList
 import kotlinx.android.synthetic.main.activity_photos.*
+import org.bson.types.ObjectId
 import java.util.*
 
 
@@ -29,9 +33,19 @@ class PhotosActivity : AppCompatActivity() {
     private lateinit var linearLayoutManager: LinearLayoutManager
     private lateinit var adapter: PhotosAdapter
     private var listUri: ArrayList<Uri> = ArrayList()
+    lateinit var realm: Realm
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_photos)
+
+        Realm.init(this);
+        val config = RealmConfiguration.Builder()
+                .allowQueriesOnUiThread(true)
+                .allowWritesOnUiThread(true)
+                .build()
+        realm = Realm.getInstance(config)
+
+
         cameraButton.setOnClickListener {
             if (checkPersmission())
                 takePicture()
@@ -46,6 +60,17 @@ class PhotosActivity : AppCompatActivity() {
         recyclerView.layoutManager = linearLayoutManager
         adapter = PhotosAdapter(this, listUri)
         recyclerView.adapter = adapter
+    }
+
+    fun addPhotoUriToMarker(markerId:String, newPhotoUri:Uri){
+        val markerObjectId = ObjectId(markerId)
+        val markerFound = realm.where(MarkerRealm::class.java).equalTo("_id", markerObjectId).findFirst()
+        if(markerFound != null)
+        {
+            realm.executeTransaction { r : Realm ->
+                markerFound.photosUri.add(newPhotoUri.toString())
+            }
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -109,19 +134,8 @@ class PhotosActivity : AppCompatActivity() {
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == Activity.RESULT_OK) {
             imageUri?.let { listUri.add(it) }
             adapter.notifyItemInserted(listUri.size-1)
-//            imageView.setImageURI(imageUri)
-            //To get the File for further usage
-            //val auxFile = File(mCurrentPhotoPath)
-//            var bitmap: Bitmap = BitmapFactory.decodeFile(mCurrentPhotoPath)
-//            imageView.setImageBitmap(bitmap)
+            addPhotoUriToMarker(markerId, imageUri!!)
         }
     }
 
-    override fun onBackPressed() {
-        val data = Intent()
-        data.putParcelableArrayListExtra(LIST_URI_KEY, listUri)
-        data.putExtra("MARKER_ID", markerId)
-        setResult(Activity.RESULT_OK, data)
-        super.onBackPressed()
-    }
 }

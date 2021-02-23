@@ -86,24 +86,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 photosUri.add(Uri.parse(it))
             }
             intent.putParcelableArrayListExtra(LIST_URI_KEY, photosUri)
-            startActivityForResult(intent, PHOTOS_RESULT);
+            startActivity(intent);
             true
         }
-//
-//        // Add a marker in Sydney and move the camera
-//        val sydney = LatLng(-34.0, 151.0)
-//        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-//        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
 
         mMap.setOnMapClickListener(object :GoogleMap.OnMapClickListener {
             override fun onMapClick(latlng :LatLng) {
-                // Clears the previously touched position
-                //mMap.clear();
-                // Animating to the touched position
-                //mMap.animateCamera(CameraUpdateFactory.newLatLng(latlng));
-
                 val location = LatLng(latlng.latitude,latlng.longitude)
-                val newMarker = mMap.addMarker(MarkerOptions().position(location))
+                mMap.addMarker(MarkerOptions().position(location))
+                //создаем новый маркер для хранения
                 val markerRealm = MarkerRealm()
                 markerRealm.latitude = location.latitude
                 markerRealm.longitude = location.longitude
@@ -116,25 +107,5 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 markersList.add(markerRealm)
             }
         })
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == PHOTOS_RESULT && resultCode == Activity.RESULT_OK) {
-            val markerId = data?.getStringExtra("MARKER_ID")
-            if(markerId != null) {
-                val markerFound = markersList.find{mr -> mr._id.toString() == markerId}
-                if (markerFound != null) {
-                    val newPhotosUri = data?.getParcelableArrayListExtra<Uri>(LIST_URI_KEY) as ArrayList<Uri>
-                    var rl: RealmList<String> = RealmList()
-                    newPhotosUri.forEach{
-                        rl.add(it.toString())
-                    }
-                    realm.executeTransaction { r : Realm ->
-                        markerFound.photosUri = rl
-                    }
-                }
-            }
-        }
     }
 }
