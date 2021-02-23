@@ -13,6 +13,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import io.realm.Realm
 import io.realm.RealmConfiguration
+import io.realm.RealmList
 import org.bson.types.ObjectId
 import java.io.Console
 
@@ -20,25 +21,13 @@ import java.io.Console
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private val PHOTOS_RESULT = 123
     private lateinit var mMap: GoogleMap
-    var markersList = ArrayList<LatLng>()
+    var markersList = ArrayList<MarkerRealm>()
     val LIST_URI_KEY = "LIST_URI_KEY"
-    var photosUri: ArrayList<ArrayList<Uri>> = ArrayList()
     lateinit var realm: Realm
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-
-        Realm.init(this);
-        val config = RealmConfiguration.Builder()
-            .allowQueriesOnUiThread(true)
-            .allowWritesOnUiThread(true)
-            .build()
-        realm = Realm.getInstance(config)
-        val markersQuery = realm.where(MarkerRealm::class.java).findAll()
-        for(m in markersQuery){
-           markersList.add(LatLng(m.latitude, m.longitude))
-        }
-
+        restoreData()
 
         setContentView(R.layout.activity_maps)
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
@@ -47,22 +36,30 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mapFragment.getMapAsync(this)
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-//        outState?.run {
-//            putString("KEY", textView.text.toString())
-//        }
-        outState.putSerializable("photosUri", photosUri);
-        outState.putParcelableArrayList("markersList", markersList);
-        super.onSaveInstanceState(outState)
-    }
+//    override fun onSaveInstanceState(outState: Bundle) {
+////        outState?.run {
+////            putString("KEY", textView.text.toString())
+////        }
+//        outState.putSerializable("markers", markersList);
+//        super.onSaveInstanceState(outState)
+//    }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
-        photosUri = savedInstanceState?.getSerializable("photosUri") as ArrayList<ArrayList<Uri>>
-        savedInstanceState?.
-        getParcelableArrayList<LatLng>("markersList")?.
-        forEach{
-            markersList.add(it)
+        //markersList = savedInstanceState?.getSerializable("markersList") as ArrayList<MarkerRealm>
+        restoreData()
+    }
+
+    fun restoreData(){
+        Realm.init(this);
+        val config = RealmConfiguration.Builder()
+                .allowQueriesOnUiThread(true)
+                .allowWritesOnUiThread(true)
+                .build()
+        realm = Realm.getInstance(config)
+        val markersQuery = realm.where(MarkerRealm::class.java).findAll()
+        for(m in markersQuery){
+            markersList.add(m)
         }
     }
     /**
@@ -77,13 +74,18 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         markersList.forEach{
-            mMap.addMarker(MarkerOptions().position(it))
+            mMap.addMarker(MarkerOptions().position(LatLng(it.latitude, it.longitude)))
         }
-        mMap.setOnMarkerClickListener { marker ->
+        mMap.setOnMarkerClickListener { markerClicked ->
             val intent = Intent(this, PhotosActivity ::class.java)
-            val markerIndex = markersList.indexOf(marker.position)
-            intent.putExtra("MARKER_INDEX", markerIndex)
-            intent.putParcelableArrayListExtra(LIST_URI_KEY, photosUri[markerIndex])
+            val markerFound = markersList.find{mr -> mr.latitude == markerClicked.position.latitude &&
+                    mr.longitude == markerClicked.position.longitude}
+            intent.putExtra("MARKER_ID", markerFound?._id.toString())
+            var photosUri : ArrayList<Uri> = ArrayList()
+            markerFound?.photosUri?.forEach{
+                photosUri.add(Uri.parse(it))
+            }
+            intent.putParcelableArrayListExtra(LIST_URI_KEY, photosUri)
             startActivityForResult(intent, PHOTOS_RESULT);
             true
         }
@@ -102,17 +104,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
                 val location = LatLng(latlng.latitude,latlng.longitude)
                 val newMarker = mMap.addMarker(MarkerOptions().position(location))
-                //Добавляем в список маркеров новый
-                markersList.add(location)
-                //Добавляем в список с uri фотографий новый список для нового маркера
-                photosUri.add(ArrayList())
+                val markerRealm = MarkerRealm()
+                markerRealm.latitude = location.latitude
+                markerRealm.longitude = location.longitude
+
                 //добавляем новый маркер в БД
                 realm.executeTransaction { r : Realm ->
-                    val markerRealm = MarkerRealm()
-                    markerRealm.latitude = location.latitude
-                    markerRealm.longitude = location.longitude
                     r.insert(markerRealm)
                 }
+                //Добавляем в список маркеров новый
+                markersList.add(markerRealm)
             }
         })
     }
@@ -120,9 +121,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PHOTOS_RESULT && resultCode == Activity.RESULT_OK) {
-            val markerIndex = data?.getIntExtra("MARKER_INDEX", -1)
-            if(markerIndex != null && markerIndex >= 0) {
-                photosUri[markerIndex] = data?.getParcelableArrayListExtra<Uri>(LIST_URI_KEY) as ArrayList<Uri>
+            val markerId = data?.getStringExtra("MARKER_ID")
+            if(markerId != null) {
+                val markerFound = markersList.find{mr -> mr._id.toString() == markerId}
+                if (markerFound != null) {
+                    val newPhotosUri = data?.getParcelableArrayListExtra<Uri>(LIST_URI_KEY) as ArrayList<Uri>
+                    var rl: RealmList<String> = RealmList()
+                    newPhotosUri.forEach{
+                        rl.add(it.toString())
+                    }
+                    realm.executeTransaction { r : Realm ->
+                        markerFound.photosUri = rl
+                    }
+                }
             }
         }
     }

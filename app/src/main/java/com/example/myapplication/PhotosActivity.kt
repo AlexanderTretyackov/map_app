@@ -9,14 +9,11 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
-import android.view.View
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.gms.maps.model.LatLng
 import kotlinx.android.synthetic.main.activity_photos.*
 import java.util.*
 
@@ -26,7 +23,7 @@ class PhotosActivity : AppCompatActivity() {
     val REQUEST_IMAGE_CAPTURE = 1
     val LIST_URI_KEY = "LIST_URI_KEY"
     var imageUri: Uri? = null
-    var markerIndex : Int = -1
+    var markerId : String = ""
     private val lastVisibleItemPosition: Int
         get() = linearLayoutManager.findLastVisibleItemPosition()
     private lateinit var linearLayoutManager: LinearLayoutManager
@@ -44,7 +41,7 @@ class PhotosActivity : AppCompatActivity() {
 
         val extras = intent.extras
         listUri = extras?.getParcelableArrayList<Uri>(LIST_URI_KEY) as ArrayList<Uri>
-        markerIndex = extras.getInt("MARKER_INDEX", -1)
+        markerId = extras.getString("MARKER_ID")!!
         linearLayoutManager = LinearLayoutManager(this)
         recyclerView.layoutManager = linearLayoutManager
         adapter = PhotosAdapter(this, listUri)
@@ -53,13 +50,13 @@ class PhotosActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putParcelableArrayList(LIST_URI_KEY, listUri);
-        outState.putInt("MARKER_INDEX", markerIndex);
+        outState.putString("MARKER_ID", markerId);
         super.onSaveInstanceState(outState)
     }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         listUri.clear()
-        markerIndex = savedInstanceState?.getInt("MARKER_INDEX", -1)
+        markerId = savedInstanceState?.getString("MARKER_ID")!!
         var savedListUri = savedInstanceState?.getParcelableArrayList<Uri>(LIST_URI_KEY) as ArrayList<Uri>
         for(uri in savedListUri){
             listUri.add(uri)
@@ -84,11 +81,9 @@ class PhotosActivity : AppCompatActivity() {
             PERMISSION_REQUEST_CODE -> {
                 if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
                         &&grantResults[1] == PackageManager.PERMISSION_GRANTED) {
-
-                    //takePicture()
-
+                    takePicture()
                 } else {
-                    Toast.makeText(this,"Permission Denied",Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this,"Вы не предоставили разрешения :(",Toast.LENGTH_SHORT).show()
                 }
                 return
             }
@@ -125,7 +120,7 @@ class PhotosActivity : AppCompatActivity() {
     override fun onBackPressed() {
         val data = Intent()
         data.putParcelableArrayListExtra(LIST_URI_KEY, listUri)
-        data.putExtra("MARKER_INDEX", markerIndex)
+        data.putExtra("MARKER_ID", markerId)
         setResult(Activity.RESULT_OK, data)
         super.onBackPressed()
     }

@@ -14,6 +14,4 @@ open class MarkerRealm : RealmObject() {
     open var longitude: Double = 0.0
     open var latitude: Double = 0.0
     open var photosUri: RealmList<String> = RealmList()
-//    public open var latitude: Double = 0.0
-//    public open var longitude: Double = 0.0
 }
