@@ -4,25 +4,42 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Debug
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
+import io.realm.Realm
+import io.realm.RealmConfiguration
+import org.bson.types.ObjectId
+import java.io.Console
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private val PHOTOS_RESULT = 123
     private lateinit var mMap: GoogleMap
     var markersList = ArrayList<LatLng>()
-    private var listUri: ArrayList<Uri> = ArrayList()
     val LIST_URI_KEY = "LIST_URI_KEY"
     var photosUri: ArrayList<ArrayList<Uri>> = ArrayList()
-
+    lateinit var realm: Realm
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+
+        Realm.init(this);
+        val config = RealmConfiguration.Builder()
+            .allowQueriesOnUiThread(true)
+            .allowWritesOnUiThread(true)
+            .build()
+        realm = Realm.getInstance(config)
+        val markersQuery = realm.where(MarkerRealm::class.java).findAll()
+        for(m in markersQuery){
+           markersList.add(LatLng(m.latitude, m.longitude))
+        }
+
+
         setContentView(R.layout.activity_maps)
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -89,6 +106,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 markersList.add(location)
                 //Добавляем в список с uri фотографий новый список для нового маркера
                 photosUri.add(ArrayList())
+                //добавляем новый маркер в БД
+                realm.executeTransaction { r : Realm ->
+                    val markerRealm = MarkerRealm()
+                    markerRealm.latitude = location.latitude
+                    markerRealm.longitude = location.longitude
+                    r.insert(markerRealm)
+                }
             }
         })
     }
@@ -97,8 +121,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PHOTOS_RESULT && resultCode == Activity.RESULT_OK) {
             val markerIndex = data?.getIntExtra("MARKER_INDEX", -1)
-            if(markerIndex != null && markerIndex >= 0)
+            if(markerIndex != null && markerIndex >= 0) {
                 photosUri[markerIndex] = data?.getParcelableArrayListExtra<Uri>(LIST_URI_KEY) as ArrayList<Uri>
+            }
         }
     }
 }
