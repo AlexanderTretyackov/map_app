@@ -1,19 +1,26 @@
 package com.example.myapplication
 
+import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+    private val PHOTOS_RESULT = 123
     private lateinit var mMap: GoogleMap
     var markersList = ArrayList<LatLng>()
+    private var listUri: ArrayList<Uri> = ArrayList()
+    val LIST_URI_KEY = "LIST_URI_KEY"
+    var photosUri: ArrayList<ArrayList<Uri>> = ArrayList()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
@@ -27,13 +34,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 //        outState?.run {
 //            putString("KEY", textView.text.toString())
 //        }
+        outState.putSerializable("photosUri", photosUri);
         outState.putParcelableArrayList("markersList", markersList);
         super.onSaveInstanceState(outState)
     }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
-
+        photosUri = savedInstanceState?.getSerializable("photosUri") as ArrayList<ArrayList<Uri>>
         savedInstanceState?.
         getParcelableArrayList<LatLng>("markersList")?.
         forEach{
@@ -56,8 +64,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         mMap.setOnMarkerClickListener { marker ->
             val intent = Intent(this, PhotosActivity ::class.java)
-            //intent.putExtra("key", value)
-            startActivity(intent)
+            val markerIndex = markersList.indexOf(marker.position)
+            intent.putExtra("MARKER_INDEX", markerIndex)
+            intent.putParcelableArrayListExtra(LIST_URI_KEY, photosUri[markerIndex])
+            startActivityForResult(intent, PHOTOS_RESULT);
             true
         }
 //
@@ -74,10 +84,21 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 //mMap.animateCamera(CameraUpdateFactory.newLatLng(latlng));
 
                 val location = LatLng(latlng.latitude,latlng.longitude)
-                mMap.addMarker(MarkerOptions().position(location))
+                val newMarker = mMap.addMarker(MarkerOptions().position(location))
                 //Добавляем в список маркеров новый
                 markersList.add(location)
+                //Добавляем в список с uri фотографий новый список для нового маркера
+                photosUri.add(ArrayList())
             }
         })
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PHOTOS_RESULT && resultCode == Activity.RESULT_OK) {
+            val markerIndex = data?.getIntExtra("MARKER_INDEX", -1)
+            if(markerIndex != null && markerIndex >= 0)
+                photosUri[markerIndex] = data?.getParcelableArrayListExtra<Uri>(LIST_URI_KEY) as ArrayList<Uri>
+        }
     }
 }
